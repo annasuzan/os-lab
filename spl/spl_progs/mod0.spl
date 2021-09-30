@@ -1,0 +1,113 @@
+alias returnValue R0;
+alias functionNum R1;
+alias currentPID R2;
+alias pte R10;
+alias i R11;
+// =============================================================this is resource manager module
+if(functionNum == ACQUIRE_TERMINAL)
+then
+    pte = PROCESS_TABLE + currentPID*16;
+
+    while([TERMINAL_STATUS_TABLE+0] == 1)
+    do
+        [pte + 4] = WAIT_TERMINAL;
+        multipush(R1, R2);
+        call CONTEXT_SWITCH;
+        multipop(R1, R2);
+    endwhile;
+
+    [TERMINAL_STATUS_TABLE+0] = 1;
+    [TERMINAL_STATUS_TABLE+1] = currentPID;
+
+    return;
+endif;
+
+if(functionNum == RELEASE_TERMINAL)
+then
+    //if not same process is trying to release terminal without acquiring it
+    if([TERMINAL_STATUS_TABLE+1] != currentPID)
+    then
+        returnValue = -1;
+        return;
+    endif;
+
+    [TERMINAL_STATUS_TABLE+0] = 0;
+    returnValue = 0;
+
+    i = 1;
+    while(i < MAX_PROC_NUM)
+    do
+        pte = PROCESS_TABLE + _i*16;
+        if([pte+4] == WAIT_TERMINAL)
+        then
+            [pte+4] = READY;
+        endif;
+        i = i+1;
+    endwhile;
+
+    return;
+endif;
+if (functionNum == ACQUIRE_DISK) then
+   
+    //print("in aquire disk");
+    while([DISK_STATUS_TABLE+0]==1) do
+        [PROCESS_TABLE+[DISK_STATUS_TABLE+4]*16 + 4] = WAIT_DISK;
+        multipush( R1, R2, R3);
+        call CONTEXT_SWITCH;
+        multipop(R1,R2, R3);
+    endwhile;
+    [DISK_STATUS_TABLE+0] = 1;
+    [DISK_STATUS_TABLE+4] = currentPID;
+    //print("disk acquired!");
+   // print(R0);
+    return;
+    
+endif;
+if(functionNum == ACQUIRE_SEMAPHORE) then
+    alias pid R7;
+    pid = currentPID;
+    i = 0;
+    while(i < 32) do 
+        if([SEMAPHORE_TABLE+ i*4 + 1] == 0) then
+            break;
+        endif;
+        i = i+ 1;
+    endwhile;
+    if(i == 32) then
+        returnValue = -1;
+    endif;
+    [SEMAPHORE_TABLE+ i*4 + 1] = -1; //locking pid
+    [SEMAPHORE_TABLE+ i*4 + 1] = 1; //shared count
+    returnValue = i;
+    return;
+
+endif;
+
+if(functionNum == RELEASE_SEMAPHORE) then
+//R2 is semid and pid is R3 therefore change stuff accordingly
+
+    alias semi R7;
+    alias pid R8;
+    semi = R2;
+    pid = R3;
+    if([SEMAPHORE_TABLE + semi*4] == pid) then 
+        [SEMAPHORE_TABLE+ semi*4 ] = -1;
+        //wake up waiting processes
+        i = 0;
+        alias pcb R12;
+        while(i < 16 ) do 
+            pcb = PROCESS_TABLE+ i*16;
+            if([pcb+4] == WAIT_SEMAPHORE && [pcb + 5] == semi) then
+                [pcb+4] = READY;
+            endif;
+            i = i+1;
+        endwhile;
+        [SEMAPHORE_TABLE+semi*4+1] =[SEMAPHORE_TABLE+semi*4+1]-1;
+        returnValue = 0;
+        return;
+    endif;  
+
+endif;
+
+
+return;

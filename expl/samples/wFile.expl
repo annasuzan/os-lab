@@ -1,0 +1,26 @@
+int main()
+{
+decl
+	int permission,fd,num,temp; 
+	string fileName;
+enddecl
+begin
+	write("File name");
+	read(fileName);
+	write("Permission");
+	read(permission);
+	
+	temp = exposcall("Create",fileName,permission);
+	fd = exposcall("Open",fileName);
+	write("fd");
+	write(fd);
+	num = 1;
+	while(num<100) do
+		temp = exposcall("Write",fd,num);
+		write(temp);
+		num = num + 1;
+	endwhile;
+	temp = exposcall("Close",fd);
+	return 0;
+end
+}

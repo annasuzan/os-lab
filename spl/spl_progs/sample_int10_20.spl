@@ -1,0 +1,36 @@
+//print "hlt";
+
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+[PROCESS_TABLE + currentPID * 16 + 9] = 10;
+
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + currentPID * 16;
+[process_table_entry + 13] = SP;
+SP = [process_table_entry + 11] * 512 -1;
+
+multipush(R0,R1);
+R1 = 3;
+R2 = currentPID;
+call MOD_1;
+multipop(R0,R1);
+
+multipush(R0,R1);
+call MOD_5;
+multipop(R0,R1);
+
+//[process_table_entry + 4] = TERMINATED;
+
+//print "cID";
+//print currentPID;
+
+//alias i R5;
+//alias temp R6;
+//i = 1;
+//while(i<MAX_PROC_NUM) do
+	//if([PROCESS_TABLE + i*16 + 4] != TERMINATED) then
+		//call MOD_5;
+	//endif;
+	//i = i+1;
+//endwhile;
+//halt;

@@ -1,0 +1,81 @@
+//print "pro";
+
+alias functionNo R1;
+alias currPID R2;
+alias userAreaPage R5;
+alias pageNo R6;
+
+//FREE_USER_AREA_PAGE
+if(functionNo == 2) then 
+	//print "freeuser";  
+	userAreaPage = [PROCESS_TABLE + currPID * 16 + 11];
+	//alias pageNo R6;
+
+	multipush(R1,R2,R5);
+
+	functionNo = 2;     //RELEASE_PAGE
+	pageNo = userAreaPage;
+	call MOD_2;
+	
+	multipop(R1,R2,R5);
+
+endif;
+
+//EXIT_PROCESS
+if(functionNo == 3) then 
+	//print("exitprocess");  
+	userAreaPage = [PROCESS_TABLE + currPID * 16 + 11];
+
+	multipush(R1,R2,R5);
+
+	functionNo = 4;     //FREE_PAGE_TABLE
+	call MOD_1;
+
+	functionNo = 2;    //FREE_USER_AREA_PAGE
+	pageNo = userAreaPage;
+	call MOD_1;
+
+	multipop(R1,R2,R5);
+
+	[PROCESS_TABLE + currPID * 16 + 4] = TERMINATED;
+endif;
+
+//FREE_PAGE_TABLE
+if(functionNo == 4) then 
+
+	//print("freePT");
+	//invalidating library pages
+	[PTBR+0] = -1;
+	[PTBR+1] = "0000";
+	[PTBR+2] = -1;
+	[PTBR+3] = "0000";
+
+	//alias pageNo R6;
+	alias i R10;
+	i = 4;
+	//print("releasing pages");
+	while(i<20) do
+		if([PTBR + i] != -1) then
+			
+			//releasing valid entries
+			multipush(R1,R2,R5,R10);
+
+			functionNo = 2;     //RELEASE_PAGE
+			pageNo = [PTBR + i];
+			call MOD_2;
+
+			multipop(R1,R2,R5,R10);
+			
+			//invalidating those entries
+			[PTBR + i] = -1;
+			[PTBR + i + 1] = "0000";
+			
+		endif;
+		i = i + 2;
+	endwhile;
+endif;
+
+//print("exitpr");
+return;		
+
+	

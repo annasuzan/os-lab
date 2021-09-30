@@ -1,0 +1,130 @@
+//print "mem";
+
+alias freePage R0;
+alias functionNo R1;
+alias arg1 R2;
+alias arg2 R3;
+//alias pageNo R6;
+alias i R10;
+alias j R11;
+
+//GET_FREE_PAGE
+if(functionNo == 1) then
+	//print("freepage");
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] +	1;  //WAIT_MEM_COUNT
+
+	while([SYSTEM_STATUS_TABLE + 2] == 0) do			//if no. of free memory pages are 0
+
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 4] = WAIT_MEM;
+
+		multipush(R0,R1,R2,R3);
+		call MOD_5; 		//scheduler module
+		multipush(R0,R1,R2,R3);
+
+	endwhile;
+
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;	//WAIT_MEM_COUNT
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;	//MEM_FREE_COUNT
+	
+	i = 83;
+	while(i < 128) do
+		if([MEMORY_FREE_LIST + i] == 0) then
+			[MEMORY_FREE_LIST + i] = 1;
+			freePage = i;
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	return;
+endif;
+			
+//RELEASE_PAGE
+if(functionNo == 2) then
+	//print "releasepage";
+	alias pageNo R2;
+	pageNo = arg1;
+	//print pageNo;
+	[MEMORY_FREE_LIST + pageNo] = [MEMORY_FREE_LIST + pageNo] - 1;
+	if([MEMORY_FREE_LIST + pageNo] == 0) then
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;   //MEM_FREE_COUNT
+	endif;
+	
+	i = 0;
+	while(i<MAX_PROC_NUM) do
+		if([PROCESS_TABLE + i*16 + 4] == WAIT_MEM) then
+			[PROCESS_TABLE + i*16 + 4] = READY;
+		endif;
+		i = i + 1;
+	endwhile;
+	return;
+endif;
+
+//RELEASE_BLOCK
+if(functionNo == 4) then
+	alias diskBlock R2;
+	diskBlock = arg1;
+	//print("releaseBlock");
+	//print(diskBlock);
+	[DISK_FREE_LIST + diskBlock] = [DISK_FREE_LIST + diskBlock] - 1;
+	return;
+endif;
+
+
+// GET_CODE_PAGE 
+if(functionNo == 5) then
+	//print("get_code_page");
+	alias diskBlock R2;
+	diskBlock = R2;
+	//print("diskBlock");
+	R15 = diskBlock;
+	//print R15;
+	
+	i = 0;
+	while(i<MAX_PROC_NUM) do
+		j = 4;
+		while(j<8) do
+			if(([DISK_MAP_TABLE + i*10 + j] == diskBlock) && ([PAGE_TABLE_BASE + i*20 + 2*j] != -1)) then
+					//print "i";
+					//print i;
+					//print "j";
+					//print j;
+					freePage = [PAGE_TABLE_BASE + i*20 + 2*j];
+					[MEMORY_FREE_LIST + freePage] = [MEMORY_FREE_LIST + freePage] + 1;
+					return;
+			endif;
+			j = j + 1;
+		endwhile;
+		i = i + 1;
+	endwhile;
+
+	multipush(R1,R2,R3,R6,R10,R11,R15);
+	functionNo = 1;				//GET FREE PAGE
+	call MOD_2;
+	freePage = R0;
+	multipop(R1,R2,R3,R6,R10,R11,R15);
+
+	//print("R0outside");
+	//print R0;
+
+
+	multipush(R0,R1,R2,R3,R6,R10,R11,R15);
+	R1 = 2;					//DISK_LOAD
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = freePage;
+	R4 = R15;
+	//print("args");
+	//print R2;
+	//print R3;
+	//print R4;
+	call MOD_4;
+	multipop(R0,R1,R2,R3,R6,R10,R11,R15);
+	//breakpoint;
+	return;			
+endif;
+
+//print("exitmem");
+return;	
+	
+			
+		
+		

@@ -1,0 +1,17 @@
+int main()
+{
+ decl
+      int a,num;
+ enddecl
+ begin
+	//a = 1;
+	write("enter num");
+	read(num);
+	write("enter num");
+	read(num);
+	write("enter num");
+	read(num);
+
+	return 0;
+ end 
+}

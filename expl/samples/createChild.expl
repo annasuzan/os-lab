@@ -1,0 +1,21 @@
+int main()
+{
+decl
+	int pid,temp1,temp2; 
+enddecl
+begin
+	//write("Creating child");
+	pid = exposcall("Fork");
+	//write("forkdone");
+	//write(pid);
+	if(pid == 0) then
+		//write("IN child");
+		temp1 = exposcall("Exec","oUP_14.xsm");
+		//write("doneodd");
+	else
+		temp1 = exposcall("Exec","eUP_14.xsm");
+	endif;
+	//write("afterendif");
+	return 0;
+end
+}

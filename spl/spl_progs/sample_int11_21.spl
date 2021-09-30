@@ -1,0 +1,85 @@
+//print("enter11");
+
+alias userSP R11;
+userSP = SP;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+alias syscallNo R12;
+syscallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+//print("sysno");
+// WAIT SYSTEM CALL
+if(syscallNo == 13) then	
+	alias argPID R6;
+	argPID = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 13;
+
+	if(argPID < 0 || argPID == [SYSTEM_STATUS_TABLE + 1] || [PROCESS_TABLE + argPID * 16 + 4] == TERMINATED) then	//CHECK IF CONDITIONS INSIDE
+		//if([PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 5] == [SYSTEM_STATUS_TABLE + 1]) then
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		//endif;
+	else
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 4] = WAIT_PROCESS;
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 5] = argPID;
+	
+		multipush(R6,R11,R12);
+		call MOD_5;
+		multipop(R6,R11,R12);
+		
+		//print("eSi11");
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+	endif;
+	
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+	ireturn;
+	
+endif;
+
+//SIGNAL SYSTEM CALL
+if(syscallNo == 14) then	
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 14;
+	alias i R10;
+	i = 0;
+	while(i<MAX_PROC_NUM) do
+		if([PROCESS_TABLE + i * 16 + 4] == WAIT_PROCESS) then
+			if([PROCESS_TABLE + i * 16 + 5] == [SYSTEM_STATUS_TABLE + 1]) then
+				[PROCESS_TABLE + i * 16 + 4] = READY;
+			endif;
+		endif;
+		i = i + 1;
+	endwhile;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+	ireturn;
+	
+endif;
+
+// GETPID SYSTEM CALL
+if(syscallNo == 11) then
+	//print(syscallNo);	
+	R0 = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 1];
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = R0;
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+	ireturn;		
+endif;	
+
+// GETPPID SYSTEM CALL
+if(syscallNo == 12) then
+	//print(syscallNo);
+	R0 = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 2];
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = R0;
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+	ireturn;	
+endif;	
+
+
+
+
+
+
+

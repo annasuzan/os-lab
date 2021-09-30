@@ -1,0 +1,86 @@
+//print("int13");
+alias userSP R11;
+userSP = SP;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+alias syscallNo R12;
+syscallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+alias i R10;
+alias prePT R13;
+prePT = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 + RESOURCE_TABLE_OFFSET;
+
+//print("sysno");
+
+// SEMGET SYSTEM CALL
+if(syscallNo == 17) then
+	//print syscallNo;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 17;
+	
+	i = 0;
+	while(i<8) do 
+		if([prePT + i * 2 + 0] == -1) then
+			[prePT + i * 2 + 0] = 1;
+			multipush(R10,R11,R12,R13);
+			R1 = 6;				//ACQUIRE SEMAPHORE
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			call MOD_0;			//RESOURCE MANAGER
+			multipop(R10,R11,R12,R13);
+			if(R0 != -1) then
+				[prePT + i * 2 + 1] = R0;
+				//R0 = i;
+				[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = i;
+			else
+				[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -2;	//MAX SEMAPHORES
+			endif;
+			[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+			SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+			//print("ends17");
+			ireturn;
+		endif;
+		i = i + 1;
+	endwhile;
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;		//MAX RESOURCES REACHED
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+	//print("endf17");
+	ireturn;
+endif;
+
+
+
+// SEMRELEASE SYSTEM CALL
+if(syscallNo == 18) then
+	//print syscallNo;
+	alias SemID R9;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 18;
+	if(SemID >= 0 && SemID <=7) then
+		if([prePT + SemID * 2 + 0] == 1) then
+			multipush(R9,R10,R11,R12,R13);
+			R1 = 7;
+			R2 = [prePT + SemID * 2 + 1];
+			R3 = [SYSTEM_STATUS_TABLE + 1]; 
+			call MOD_0;
+			multipop(R9,R10,R11,R12,R13);
+			[prePT + SemID * 2 + 0] = -1;
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+		else
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;	
+		endif;
+	else
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;		
+	endif;
+
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+	//print("end18");
+	ireturn;
+endif;
+
+
+
+
+
+

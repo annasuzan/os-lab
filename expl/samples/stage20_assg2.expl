@@ -1,0 +1,66 @@
+type 
+LinkedList
+{
+	int data;
+	LinkedList next;
+}
+endtype
+
+int main()
+{
+decl
+	LinkedList head,curr,prev,node;
+	int n,value,pid;
+enddecl
+begin
+	head = null;
+	value = initialize();
+
+	prev = head;
+	n = 1;
+	while(n <= 100) do
+		curr = alloc();
+		curr.data = n;
+		curr.next = null;
+
+		if(head == null) then
+			head = curr;
+			prev = curr;
+		else
+			prev.next = curr;
+			prev = curr;
+		endif;
+		
+		n = n + 1;
+	endwhile;
+
+	pid = exposcall("Fork");
+	if(pid == 0) then
+        	curr = head;
+        	while(curr != null)  do
+            		value = curr.data;
+            		write(value);
+            		curr = curr.next;
+            		if(curr == null) then
+                		break;
+            		endif;
+            		curr = curr.next;
+        	endwhile;
+	else
+		node = head.next;
+        	while(node != null)  do
+            		value = node.data;
+            		write(value);
+            		node = node.next;
+            		if(node == null) then
+                		break;
+            		endif;
+            		node = node.next;
+        	endwhile;
+    	endif; 
+	return 0;   
+end
+}
+
+
+

@@ -1,0 +1,101 @@
+//print("int14");
+alias userSP R11;
+userSP = SP;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+alias syscallNo R12;
+syscallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+alias SemID R9;
+SemID = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+alias prePT R13;
+prePT = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 + RESOURCE_TABLE_OFFSET;
+
+alias i R10;
+
+//print("sysno");
+
+//SEMLOCK SYSTEM CALL
+if(syscallNo == 19) then
+	//print syscallNo;
+	//print SemID;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 19;
+	if(SemID >= 0 && SemID <=7) then
+		if([prePT + SemID * 2 + 0] == 1) then
+			//print("qual");
+			alias SemTableEntry R8;
+			SemTableEntry = [prePT + SemID * 2 + 1];
+			//print(SemTableEntry);
+			//print([SEMAPHORE_TABLE + SemTableEntry * 4 + 0]);
+			while([SEMAPHORE_TABLE + SemTableEntry * 4 + 0] != -1 && [SEMAPHORE_TABLE + SemTableEntry * 4 + 0] != [SYSTEM_STATUS_TABLE + 1]) do
+				//print("inwhile");
+				[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 4] = WAIT_SEMAPHORE;
+				[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 5] = SemTableEntry;
+				multipush(R8,R9,R10,R11,R12,R13);
+				call MOD_5;
+				multipop(R8,R9,R10,R11,R12,R13);
+			endwhile;
+			//print("aftwhile");
+			[SEMAPHORE_TABLE + SemTableEntry * 4 + 0] = [SYSTEM_STATUS_TABLE + 1];
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+		else
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		endif;
+	else
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+	endif;	
+	//print("end19");
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+	ireturn;
+endif;
+
+
+// SEMUNLOCK SYSTEM CALL
+if(syscallNo == 20) then
+	//print syscallNo;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 20;
+	if(SemID >= 0 && SemID <= 7) then
+		if([prePT + SemID * 2 + 0] == 1) then
+			//print("qual");
+
+			alias SemTableEntry R8;
+			SemTableEntry = [prePT + SemID * 2 + 1];
+
+			if([SEMAPHORE_TABLE + SemTableEntry * 4 + 0] != -1) then
+				if([SEMAPHORE_TABLE + SemTableEntry * 4 + 0] == [SYSTEM_STATUS_TABLE + 1]) then
+					[SEMAPHORE_TABLE + SemTableEntry * 4 + 0] = -1;
+					i = 0;
+					while(i<MAX_PROC_NUM) do
+						if([PROCESS_TABLE + i * 16 + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + i * 16 + 5] == SemTableEntry) then
+							[PROCESS_TABLE + i * 16 + 4] = READY;
+						endif;
+						i = i + 1;
+					endwhile;
+					//print("su14");
+					[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+				else
+					[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -2;
+				endif;
+						
+			endif;
+		else
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;	
+		endif;
+	else
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;	
+	endif;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+	//print("ends20");
+	ireturn;
+endif;
+
+
+
+
+
+

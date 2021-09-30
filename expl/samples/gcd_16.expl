@@ -1,0 +1,41 @@
+int main()
+{
+decl 
+	int temp,gcd,a,b;
+
+enddecl
+
+begin
+	gcd = -1; 
+	write("Enter number 1");
+	temp = exposcall("Read",-1,a);
+	write("Enter number 2");
+	temp = exposcall("Read",-1,b);
+	if(a<b) then
+		temp = a;
+		a = b;
+		b = temp;
+	endif;
+	while(b > 1) do
+		temp = b;
+		b = a%b;
+		a = temp;
+	endwhile;
+	if(b == 0) then
+		gcd = a;
+	endif;
+	if(b == 1) then
+		gcd = 1;
+	endif;
+	
+	write("GCD");
+	write(gcd);
+	return 0;
+
+end
+}
+
+
+
+
+

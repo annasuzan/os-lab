@@ -1,0 +1,27 @@
+int main()
+{
+decl
+	int temp,a,i,p,rem;
+enddecl
+begin
+	a = 1;
+	while(a<=100) do
+		p = 1;
+		i = 2;
+		while(i<a) do
+			rem=a%i;
+			if(rem==0) then
+				p = 0;
+				break;
+			endif;
+			i = i+1;
+		endwhile;
+		if(p==1) then
+			temp = exposcall("Write",-2,a);	
+		endif;
+		a = a + 1;
+	endwhile;
+	return 0;
+end
+}
+

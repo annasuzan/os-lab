@@ -1,0 +1,201 @@
+//OPEN - 2-- CLOSE - 3
+//print("int5");
+alias processTable R5;
+processTable = PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16;
+
+alias userSP R11;
+userSP = SP;
+
+[processTable + 13] = SP;
+SP = [processTable + 11] * 512 - 1;
+
+alias syscallNo R12;
+syscallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+
+alias returnVal R9;
+returnVal = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512);
+
+alias prePT R8;
+prePT = [processTable + 11] * 512 + RESOURCE_TABLE_OFFSET;
+
+alias inodeEntry R7;
+
+alias i R10;
+
+//print("syscallNo");
+//OPEN SYSTEM CALL
+if(syscallNo == 2) then
+	//print(syscallNo);
+	[processTable + 9] = 2;
+	
+	alias fileName R13;
+	fileName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	i = 0;
+	alias resourceEntry R6;
+	resourceEntry = -1;
+	while(i<8) do
+		if([prePT + i * 2] == -1) then
+			resourceEntry = i;
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	if(resourceEntry == -1) then
+		[returnVal] = -3;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	
+	multipush(R5,R6,R7,R8,R9,R10,R11,R12,R13);
+	R1 = 3;		//OPEN
+	R2 = fileName;
+	call MOD_3;	//FILE MANAGER
+	multipop(R5,R6,R7,R8,R9,R10,R11,R12,R13);
+	if(R0 == -1 || R0 == -2) then
+		[returnVal] = -3;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+
+	[prePT + resourceEntry * 2 + 0] = FILE;
+	[prePT + resourceEntry * 2 + 1] = R0;
+
+	[returnVal] = resourceEntry;
+	//[processTable + 9] = 0;
+	//SP = [processTable + 13];
+	//ireturn;
+	
+endif;	
+
+//CLOSE SYSTEM CALL
+if(syscallNo == 3) then
+	[processTable + 9] = 3;
+	
+	alias fileDesc R13;
+	fileDesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	if (fileDesc < 0 || fileDesc > 7) then
+		[returnVal] = -1;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	
+	if([prePT + fileDesc * 2] == -1 || [prePT + fileDesc * 2] != FILE) then
+		[returnVal] = -1;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	
+	multipush(R5,R6,R7,R8,R9,R10,R11,R12,R13);
+	R1 = 4;		//CLOSE
+	R2 = [prePT + fileDesc * 2 + 1];
+	call MOD_3;	//FILE MANAGER
+	multipop(R5,R6,R7,R8,R9,R10,R11,R12,R13);
+	
+	[prePT + fileDesc * 2] = -1;
+
+	[returnVal] = 0;
+	//[processTable + 9] = 0;
+	//SP = [processTable + 13];
+	//ireturn;
+
+endif;
+
+//SEEK SYSTEM CALL
+if(syscallNo == 6) then
+	//print(syscallNo);
+	[processTable + 9] = 6;
+	alias fileDesc R13;
+	fileDesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	alias offset R14;
+	offset = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+	
+	if (fileDesc < 0 || fileDesc > 7) then
+		[returnVal] = -1;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	
+	if([prePT + fileDesc * 2] == -1 || [prePT + fileDesc * 2] != FILE) then
+		[returnVal] = -1;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	
+	alias openFileEntry R6;
+
+	openFileEntry = [prePT + fileDesc * 2 + 1];
+	inodeEntry = [OPEN_FILE_TABLE + openFileEntry * 4];
+
+	multipush(R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+	R1 = 4;		//ACQUIRE INODE
+	R2 = inodeEntry;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;	//RESOURCE TABLE
+	multipop(R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+
+	if(R0 == -1) then
+		[returnVal] = -1;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	
+	alias Lseek R3;
+	alias memBuffer R4;
+
+	Lseek = OPEN_FILE_TABLE + openFileEntry * 4 + 2;
+	//print("Lseek1");
+	//print([Lseek]);
+	
+	alias fileSize R10;
+	if([INODE_TABLE + inodeEntry * 16] == INODE_ROOT) then
+		fileSize = 480;
+	else
+		fileSize = [INODE_TABLE + inodeEntry * 16 + 2];
+	endif;
+	//print("fi");
+	//print(fileSize);
+	//print("l");
+	//print([Lseek] + offset);
+
+	if(([Lseek] + offset) > 0) then
+		if(offset == 0) then
+			[Lseek] = 0;
+		else
+			if(([Lseek] + offset) > fileSize) then
+				[Lseek] = fileSize;
+			else
+				[Lseek] = [Lseek] + offset; //they mentioned pre-proccesor table
+			endif;
+		endif;
+		[returnVal] = 0;
+	else
+		//print("e");
+		[returnVal] = -2;
+		
+	endif;
+	//print("Lseek2");
+	//print([Lseek]);
+	
+	multipush(R5,R9,R11);
+	R1 = 5;		//RELEASE INODE
+	R2 = inodeEntry;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;	//RESOURCE TABLE
+	multipop(R5,R9,R11);
+endif;
+	
+[processTable + 9] = 0;
+SP = [processTable + 13];
+ireturn;
+	

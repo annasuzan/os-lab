@@ -1,0 +1,51 @@
+type 
+LinkedList
+{
+	int data;
+	LinkedList next;
+}
+endtype
+
+int main()
+{
+decl
+	LinkedList head,curr,prev;
+	int n,value;
+enddecl
+begin
+	head = null;
+	value = initialize();
+
+	write('Enter the number of nodes');
+	read(n);
+
+	prev = head;
+	while(n>0) do
+		write('Enter the value');
+		read(value);
+		curr = alloc();
+		curr.data = value;
+		curr.next = null;
+
+		if(head == null) then
+			head = curr;
+			prev = curr;
+		else
+			prev.next = curr;
+			prev = curr;
+		endif;
+		
+		n = n - 1;
+	endwhile;
+	
+	write("The linked list is");
+	curr = head;
+	while(curr!=null) do
+		write(curr.data);
+		curr = curr.next;
+	endwhile;
+
+	free(curr);
+	return 1;
+end
+}

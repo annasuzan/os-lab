@@ -1,0 +1,24 @@
+alias functionNum R1;
+alias currentPID R2;
+
+//TERMINAL WRITE
+if(functionNum == 3) then
+	
+	//CALLING ACQUIRE TERMINAL 
+	multipush(R1,R2);
+	R1 = 8;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;	//calling resource manager module
+	multipop(R1,R2);
+	print R3;
+
+	//CALLING RELEASE TERMINAL
+	multipush(R1,R2);
+	R1 = 9;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;	//calling resource manager module
+	multipop(R1,R2);
+	return;
+else
+	return;
+endif;

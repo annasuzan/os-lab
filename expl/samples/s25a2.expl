@@ -1,0 +1,37 @@
+int main()
+{
+decl
+	int permission,fd,num,temp,offset,variable; 
+	string fileName;
+enddecl
+begin
+	write("File name");
+	read(fileName);
+
+	fd = exposcall("Open",fileName);
+	if(fd != 0) then	
+		write("ERROR!");
+	else
+		
+		temp = exposcall("Seek",fd,1200);
+		num = 2000;
+		while(num<=2513) do
+			temp = exposcall("Write",fd,num);
+			num = num + 1;
+		endwhile;
+		temp = 0;
+		while(temp == 0) do
+			temp = exposcall("Read",fd,variable);
+			write(variable);
+			temp = exposcall("Seek",fd,-2);
+				
+		endwhile;
+		temp = exposcall("Seek",fd,0);
+		temp = exposcall("Read",fd,variable);
+		write(variable);
+		temp = exposcall("Close",fd);
+		temp = exposcall("Close",fd);
+	endif;
+	return 0;
+end
+}

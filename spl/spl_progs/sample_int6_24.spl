@@ -1,0 +1,139 @@
+//print("int6");
+
+alias processTable R5;
+processTable = PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16;
+
+alias userSP R6;
+userSP = SP;
+
+[processTable + 13] = SP;
+SP = [processTable + 11] * 512 - 1;
+
+alias returnVal R7;
+returnVal = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512);
+
+alias perPT R8;
+perPT = [processTable + 11] * 512 + RESOURCE_TABLE_OFFSET;
+
+alias inodeEntry R9;
+
+alias i R10;
+
+alias openFileEntry R11;
+
+alias fileDesc R12;
+fileDesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+alias wordAddr R13;
+wordAddr = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+
+[processTable + 9] = 7;
+
+if(fileDesc == -1) then
+
+	multipush(R5,R6,R7);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = wordAddr;
+	call MOD_4;
+	multipop(R5,R6,R7);
+else
+	if(fileDesc < 0 || fileDesc > 7) then
+		[returnVal] = -1;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	if([perPT + fileDesc * 2] != FILE) then
+		[returnVal] = -1;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	
+	openFileEntry = [perPT + fileDesc * 2 + 1];
+	inodeEntry = [OPEN_FILE_TABLE + openFileEntry * 4];
+
+	multipush(R5,R6,R7,R8,R9,R10,R11,R12,R13);
+	R1 = 4;		//ACQUIRE INODE
+	R2 = inodeEntry;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;	//RESOURCE TABLE
+	multipop(R5,R6,R7,R8,R9,R10,R11,R12,R13);
+
+	if(R0 == -1) then
+		[returnVal] = -1;
+		[processTable + 9] = 0;
+		SP = [processTable + 13];
+		ireturn;
+	endif;
+	
+	alias Lseek R3;
+	alias memBuffer R4;
+
+	Lseek = OPEN_FILE_TABLE + openFileEntry * 4 + 2;
+	memBuffer = [PTBR + 2 * ((wordAddr) / 512)] * 512 + ((wordAddr) % 512);
+
+	if(inodeEntry == INODE_ROOT) then
+		if([Lseek] >= 480) then
+			multipush(R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+			R1 = 5;		//RELEASE INODE
+			R2 = inodeEntry;
+			R3 = [SYSTEM_STATUS_TABLE + 1];
+			call MOD_0;	//RESOURCE TABLE
+			multipop(R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+			[returnVal] = -2;
+			[processTable + 9] = 0;
+			SP = [processTable + 13];
+			ireturn;
+		endif;
+		[memBuffer] = [ROOT_FILE + [Lseek]];
+		//[([PTBR + 2*((memBuffer)/512)]*512) + ((memBuffer)%512)] = [ROOT_FILE + Lseek];
+		[Lseek] = [Lseek] + 1;
+		//[OPEN_FILE_TABLE + openFileEntry * 4 + 2] = Lseek;
+	else
+		//print("simplef");
+		//print("Lseek");
+		//print([Lseek]);
+		if([Lseek] >= [INODE_TABLE + inodeEntry * 16 + 2]) then
+			multipush(R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+			R1 = 5;		//RELEASE INODE
+			R2 = inodeEntry;
+			R3 = [SYSTEM_STATUS_TABLE + 1];
+			call MOD_0;	//RESOURCE TABLE
+			multipop(R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+			[returnVal] = -2;
+			[processTable + 9] = 0;
+			SP = [processTable + 13];
+			ireturn;
+		endif;
+		
+		multipush(R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+		R1 = 2;		//BUFFERED READ
+		R2 = [INODE_TABLE + inodeEntry * 16 + 8 + ([Lseek] / 512)];  //diskBlock
+		//print("diskBlock");
+		//print(R2);
+		R3 = [Lseek] % 512; //offset 
+		R4 = memBuffer;
+		call MOD_3;	//FILE MANAGER MODULE
+		multipop(R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+		
+		[Lseek]=[Lseek] + 1;
+		//[OPEN_FILE_TABLE + openFileEntry * 4 + 2] = Lseek;
+		
+	endif;
+
+	multipush(R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+	R1 = 5;		//RELEASE INODE
+	R2 = inodeEntry;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;	//RESOURCE TABLE
+	multipop(R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+endif;
+
+[returnVal] = 0;
+[processTable + 9] = 0;
+SP = [processTable + 13];
+//print("endint6");
+ireturn;
+

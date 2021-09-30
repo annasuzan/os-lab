@@ -1,0 +1,171 @@
+//print("mod3");
+
+alias functionNum R1;
+alias i R10;
+
+//print(functionNum);
+
+//BUFFERED READ
+if(functionNum == 2) then
+	alias diskBlockNum R6;
+	alias offset R7;
+	alias memAddr R8;
+	
+	diskBlockNum = R2;
+	offset = R3;
+	memAddr = R4;
+
+	alias buffNum R5;
+	buffNum = diskBlockNum % 4;
+	
+	multipush(R5,R6,R7,R8);
+	R1 = 1;		//ACQUIRE_BUFFER
+	R2 = buffNum;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;	//RESOURCE MANAGER MODULE
+	multipop(R5,R6,R7,R8);
+	
+	
+	if([BUFFER_TABLE + buffNum * 4] != diskBlockNum) then
+		//print("Entereif");
+		if([BUFFER_TABLE + buffNum * 4 + 1] == 1) then
+			multipush(R5,R6,R7,R8);
+			R1 = 1;					//DISK_STORE
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			R3 = (71 + buffNum);			//PAGE NUM
+			R4 = [BUFFER_TABLE + buffNum * 4];	//DISK BLOCK
+			call MOD_4;				//DEVICE MANAGER MODULE
+			multipop(R5,R6,R7,R8);
+			[BUFFER_TABLE + buffNum * 4 + 1] = 0;
+		endif;
+		multipush(R5,R6,R7,R8);
+		R1 = 2;					//DISK_LOAD
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = (71 + buffNum);
+		R4 = diskBlockNum;
+		call MOD_4;				//DEVICE MANAGER MODULE
+		multipop(R5,R6,R7,R8);
+		[BUFFER_TABLE + buffNum * 4] = diskBlockNum;
+	endif;
+	
+	[memAddr] = [BUFFER + (buffNum * 512) + offset];
+	
+	multipush(R5,R6,R7,R8);
+	R1 = 2;		//RELEASE_BUFFER
+	R2 = buffNum;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;	//RESOURCE MANAGER MODULE
+	multipop(R5,R6,R7,R8);
+	return;
+endif;
+
+//OPEN
+if(functionNum == 3) then
+	alias fileName R2;
+	alias inodeEntry R5;
+	inodeEntry = -1;
+	i = 0;
+	while(i<MAX_FILE_NUM) do
+		if([INODE_TABLE + i * 16 + 1] == fileName) then
+			inodeEntry = i;
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	if(inodeEntry == -1) then
+		R0 = -1;
+		return;
+	endif;
+	multipush(R1,R2,R5);
+	R1 = 4;					//ACQUIRE_INODE
+	R2 = inodeEntry;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;				//RESOURCE MANAGER MODULE
+	multipop(R1,R2,R5);
+	
+	if(R0 == -1) then
+		R0 = -1;
+		return;
+	endif;
+	
+	if([INODE_TABLE + inodeEntry * 16] == EXEC) then
+		multipush(R1,R2,R5);
+		R1 = 5;				//RELEASE_INODE
+		R2 = inodeEntry;
+		R3 = [SYSTEM_STATUS_TABLE + 1];
+		call MOD_0;			//RESOURCE MANAGER MODULE
+		multipop(R1,R2,R5);
+		R0 = -1;		
+		return;
+	endif;
+	
+	alias openFileEntry R4;
+	openFileEntry = -1;
+	i = 0;
+	while(i<MAX_OPENFILE_NUM) do
+		if([OPEN_FILE_TABLE + i * 4] == -1) then
+			openFileEntry = i;
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	if(openFileEntry == -1) then
+		multipush(R1,R2,R5);
+		R1 = 5;				//RELEASE_INODE
+		R2 = inodeEntry;
+		R3 = [SYSTEM_STATUS_TABLE + 1];
+		call MOD_0;			//RESOURCE MANAGER MODULE
+		multipop(R1,R2,R5);
+		R0 = -2;		
+		return;
+	endif;
+	
+	if(fileName == "root") then
+		[OPEN_FILE_TABLE + openFileEntry * 4] = INODE_ROOT;
+	else
+		if([FILE_STATUS_TABLE + inodeEntry * 4 + 1] == -1) then
+			[FILE_STATUS_TABLE + inodeEntry * 4 + 1] = 1;
+		else
+			[FILE_STATUS_TABLE + inodeEntry * 4 + 1] = [FILE_STATUS_TABLE + inodeEntry * 4 + 1] + 1;
+		endif;
+		[OPEN_FILE_TABLE + openFileEntry * 4] = inodeEntry;
+	endif;
+
+	[OPEN_FILE_TABLE + openFileEntry * 4 + 1] = 1;	//OPEN INSTANCE COUNT
+	[OPEN_FILE_TABLE + openFileEntry * 4 + 2] = 0;	//LSEEK
+
+	multipush(R1,R2,R4,R5);
+	R1 = 5;				//RELEASE_INODE
+	R2 = inodeEntry;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;			//RESOURCE MANAGER MODULE
+	multipop(R1,R2,R4,R5);
+	R0 = openFileEntry;		
+	return;
+endif;
+
+//CLOSE
+if(functionNum == 4) then
+	alias openFileEntry R2;
+	alias inodeEntry R3;
+	alias openInstCount R4;
+	
+	inodeEntry = [OPEN_FILE_TABLE + openFileEntry * 4];
+	openInstCount = [OPEN_FILE_TABLE + openFileEntry * 4 + 1];
+
+	openInstCount = openInstCount - 1;
+	if(openInstCount == 0) then
+		i = 0;
+		while(i<4) do
+			[OPEN_FILE_TABLE + openFileEntry * 4 + i] = -1;
+			i = i + 1;
+		endwhile;
+		if([INODE_TABLE + inodeEntry * 16] != ROOT) then
+			[FILE_STATUS_TABLE + inodeEntry * 4 + 1] = [FILE_STATUS_TABLE + inodeEntry * 4 + 1] - 1;
+			if([FILE_STATUS_TABLE + inodeEntry * 4 + 1] == 0) then
+				[FILE_STATUS_TABLE + inodeEntry * 4 + 1] = -1;
+			endif;
+		endif;
+	endif;
+ 	return;
+endif;

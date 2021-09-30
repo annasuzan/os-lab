@@ -1,0 +1,28 @@
+int main()
+{
+decl
+	int temp1,fd,variable,permission; 
+	str fileName;
+	str chara;
+enddecl
+begin
+	write("File name");
+	read(fileName);
+	write("Permission");
+	read(permission);
+	
+	temp1 = exposcall("Create",fileName,permission);
+
+	fd = exposcall("Open",fileName);
+	if(fd != 0) then
+		write(fd);
+		write("ERROR");
+	else
+		write("opened");
+		temp1 = exposcall("Close",fd);
+		write("closed");
+		//write(temp1);
+	endif;
+	return 0;
+end
+}

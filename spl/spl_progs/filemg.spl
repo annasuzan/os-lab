@@ -1,0 +1,205 @@
+//print("mod3");
+
+alias functionNum R1;
+alias arg1 R2;
+alias arg2 R3;
+alias arg3 R4;
+
+
+//print(functionNum);
+
+
+if(functionNum == BUFFERED_READ || functionNum == BUFFERED_WRITE ) then 
+    //print("inwrite2");
+    alias functionn R15;
+    functionn = R1;
+    alias disk R5;
+    alias offset R6;
+    alias dest R7;
+    alias buf R8;
+    alias pid R9;
+    disk = arg1;
+    offset = arg2;
+    dest = arg3;
+    buf = disk %4;
+    pid = [SYSTEM_STATUS_TABLE + 1];
+    //breakpoint;
+    //---------- Acquire the buffer by calling the Acquire_Buffer() function in the Resource Manager module;
+    //print("here2");
+    //print(arg3);
+    backup;
+    R1 = ACQUIRE_BUFFER;
+    R2 = buf; 
+    R3 = pid;
+    call RESOURCE_MANAGER;
+    //multipop(R5, R6, R7, R8, R9);
+    restore;
+    //print("here22");
+    // if the buffer contains a different disk block
+    // first get the buffer table
+
+    alias bte R10; // buffer table entry
+    alias bp R11; //buffer page
+
+    bte = BUFFER_TABLE + buf*4;
+    bp = BUFFER_BASE + buf;
+    //Since all the 4 buffer pages are shared by all the files in the file system, a buffer page may be required to be replaced by another disk block. In this case, write-back is performed only if the page is modified. The dirty bit indicates whether the page has been modified.
+    //print("vv");
+    if([bte] != disk) then
+        // ----------------------------checking if it is dirty --------------------------------------------
+        if([bte+1] == 1) then 
+            //multipush(R5, R6, R7, R8, R9, R10, R11,R15);
+            backup;
+            R1 = DISK_STORE;
+            R2 = bp;
+            R3 = [bte];
+            call DEVICE_MANAGER;
+            restore;
+            //multipop(R5, R6, R7, R8, R9, R10, R11,R15);
+        endif;
+        // load a new disk now
+        //multipush(R5, R6, R7, R8, R9, R10, R11,R15);
+        backup;
+        R1 = DISK_LOAD;
+        R2 = pid;
+        R3 = bp;
+        R4 = disk;
+        call DEVICE_MANAGER;
+        restore;
+        //multipop(R5, R6, R7, R8, R9, R10, R11,R15);
+        [bte] = disk;
+        [bte+1] = 0; // mark as clean now
+    endif;
+    //print("aa");
+    //print(functionn);
+    if (functionn == BUFFERED_READ ) then
+        [dest] = [BUFFER + buf*512 + offset];
+    endif;
+    //print("ddd");
+    //print(dest);
+    if(functionn == BUFFERED_WRITE ) then
+        [bp*512 + offset] = dest;
+        //print("aan");
+        [bte+1] = 1;
+       // breakpoint;
+    endif;
+    R1 = RELEASE_BUFFER;
+    R2 = buf;
+    R3 = pid;
+    call RESOURCE_MANAGER;
+    return;
+endif;
+
+
+//OPEN
+if(functionNum == 3) then
+	alias i R10;
+	alias fileName R2;
+	alias inodeEntry R5;
+	inodeEntry = -1;
+	i = 0;
+	while(i<MAX_FILE_NUM) do
+		if([INODE_TABLE + i * 16 + 1] == fileName) then
+			inodeEntry = i;
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	if(inodeEntry == -1) then
+		R0 = -1;
+		return;
+	endif;
+	multipush(R1,R2,R5);
+	R1 = 4;					//ACQUIRE_INODE
+	R2 = inodeEntry;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;				//RESOURCE MANAGER MODULE
+	multipop(R1,R2,R5);
+	
+	if(R0 == -1) then
+		R0 = -1;
+		return;
+	endif;
+	
+	if([INODE_TABLE + inodeEntry * 16] == EXEC) then
+		multipush(R1,R2,R5);
+		R1 = 5;				//RELEASE_INODE
+		R2 = inodeEntry;
+		R3 = [SYSTEM_STATUS_TABLE + 1];
+		call MOD_0;			//RESOURCE MANAGER MODULE
+		multipop(R1,R2,R5);
+		R0 = -1;		
+		return;
+	endif;
+	
+	alias openFileEntry R4;
+	openFileEntry = -1;
+	i = 0;
+	while(i<MAX_OPENFILE_NUM) do
+		if([OPEN_FILE_TABLE + i * 4] == -1) then
+			openFileEntry = i;
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	if(openFileEntry == -1) then
+		multipush(R1,R2,R5);
+		R1 = 5;				//RELEASE_INODE
+		R2 = inodeEntry;
+		R3 = [SYSTEM_STATUS_TABLE + 1];
+		call MOD_0;			//RESOURCE MANAGER MODULE
+		multipop(R1,R2,R5);
+		R0 = -2;		
+		return;
+	endif;
+	
+	if(fileName == "root") then
+		[OPEN_FILE_TABLE + openFileEntry * 4] = INODE_ROOT;
+	else
+		if([FILE_STATUS_TABLE + inodeEntry * 4 + 1] == -1) then
+			[FILE_STATUS_TABLE + inodeEntry * 4 + 1] = 1;
+		else
+			[FILE_STATUS_TABLE + inodeEntry * 4 + 1] = [FILE_STATUS_TABLE + inodeEntry * 4 + 1] + 1;
+		endif;
+		[OPEN_FILE_TABLE + openFileEntry * 4] = inodeEntry;
+	endif;
+
+	[OPEN_FILE_TABLE + openFileEntry * 4 + 1] = 1;	//OPEN INSTANCE COUNT
+	[OPEN_FILE_TABLE + openFileEntry * 4 + 2] = 0;	//LSEEK
+
+	multipush(R1,R2,R4,R5);
+	R1 = 5;				//RELEASE_INODE
+	R2 = inodeEntry;
+	R3 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;			//RESOURCE MANAGER MODULE
+	multipop(R1,R2,R4,R5);
+	R0 = openFileEntry;		
+	return;
+endif;
+
+//CLOSE
+if(functionNum == 4) then
+	alias i R10;
+	alias openFileEntry R2;
+	alias inodeEntry R3;
+	alias openInstCount R4;
+	
+	inodeEntry = [OPEN_FILE_TABLE + openFileEntry * 4];
+	openInstCount = [OPEN_FILE_TABLE + openFileEntry * 4 + 1];
+
+	openInstCount = openInstCount - 1;
+	if(openInstCount == 0) then
+		i = 0;
+		while(i<4) do
+			[OPEN_FILE_TABLE + openFileEntry * 4 + i] = -1;
+			i = i + 1;
+		endwhile;
+		if([INODE_TABLE + inodeEntry * 16] != ROOT) then
+			[FILE_STATUS_TABLE + inodeEntry * 4 + 1] = [FILE_STATUS_TABLE + inodeEntry * 4 + 1] - 1;
+			if([FILE_STATUS_TABLE + inodeEntry * 4 + 1] == 0) then
+				[FILE_STATUS_TABLE + inodeEntry * 4 + 1] = -1;
+			endif;
+		endif;
+	endif;
+ 	return;
+endif;

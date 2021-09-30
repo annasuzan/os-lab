@@ -1,0 +1,191 @@
+//print "reso";
+alias functionNum R1;
+alias currPID R2;
+alias i R10;
+//alias terminalStatus R10;
+//alias terminalPID R11;
+
+//terminalStatus = [TERMINAL_STATUS_TABLE + 0];
+//terminalPID = [TERMINAL_STATUS_TABLE + 1];
+
+//FOR ACQUIRE DISK
+if(functionNum == 3) then
+	while([DISK_STATUS_TABLE + 0] == 1) do
+		[PROCESS_TABLE + currPID * 16 + 4] = WAIT_DISK;
+		multipush(R1,R2,R10,R11);	
+		call MOD_5;
+		multipop(R1,R2,R10,R11);
+	endwhile;
+	[DISK_STATUS_TABLE + 0] = 1;
+	[DISK_STATUS_TABLE + 4] = currPID;
+endif;
+
+//FOR ACQUIRE BUFFER
+if(functionNum == 1) then
+	alias buffNum R2;
+	alias currPID R3;
+	while([BUFFER_TABLE + buffNum * 4 + 2] != -1) do
+		[PROCESS_TABLE + currPID * 16 + 4] = WAIT_BUFFER;
+		[PROCESS_TABLE + currPID * 16 + 5] = buffNum;
+		multipush(R1,R2,R3);	
+		call MOD_5;
+		multipop(R1,R2,R3);
+	endwhile;
+	[BUFFER_TABLE + buffNum * 4 + 2] = currPID;
+	return;
+endif;
+
+
+//FOR RELEASE BUFFER
+if(functionNum == 2) then
+	alias buffNum R2;
+	alias currPID R3;
+	if([BUFFER_TABLE + buffNum * 4 + 2] != currPID) then
+		R0 = -1;
+		return;
+	endif;
+	[BUFFER_TABLE + buffNum * 4 + 2] = -1;
+	i = 0;
+	while(i<MAX_PROC_NUM) do
+		if([PROCESS_TABLE + i * 16 + 4] == WAIT_BUFFER && [PROCESS_TABLE + i * 16 + 5] == buffNum) then
+			[PROCESS_TABLE + i * 16 + 4] = READY;
+		endif;
+		i = i + 1;
+	endwhile;
+	R0 = 0;
+	return;
+	
+	
+endif;
+
+//FOR ACQUIRE INODE
+if(functionNum == 4) then
+	alias inodeFreeEntry R2;
+	alias currPID R3;
+	while([FILE_STATUS_TABLE + inodeFreeEntry * 4] != -1) do
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 4] = WAIT_FILE;
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 5] = inodeFreeEntry;
+		multipush(R1,R2,R3);	
+		call MOD_5;
+		multipop(R1,R2,R3);
+	endwhile;
+	if([INODE_TABLE + inodeFreeEntry * 16 + 1] == -1) then
+		R0 = -1;
+	else
+		[FILE_STATUS_TABLE + inodeFreeEntry * 4] = currPID;
+		R0 = 0;
+	endif;
+	return;
+endif;
+
+//FOR RELEASE INODE
+if(functionNum == 5) then
+	alias inodeFreeEntry R2;
+	alias currPID R3;
+	if(currPID != [FILE_STATUS_TABLE + inodeFreeEntry * 4]) then
+		R0 = -1;
+		return;
+	endif;
+	[FILE_STATUS_TABLE + inodeFreeEntry * 4] = -1;
+
+	i = 0;
+	while(i<MAX_PROC_NUM) do
+		if([PROCESS_TABLE + i * 16 + 4] == WAIT_FILE && [PROCESS_TABLE + i * 16 + 5] == inodeFreeEntry) then
+			[PROCESS_TABLE + i * 16 + 4] = READY;
+		endif;
+		i = i + 1;
+	endwhile;
+	R0 = 0;
+	return;
+	
+endif;
+
+//FOR SEMAPHORE ACQUIRE
+if(functionNum == 6) then
+	i = 0;
+	while(i<32) do
+		if([SEMAPHORE_TABLE + i * 4 + 1] == 0) then
+			[SEMAPHORE_TABLE + i * 4 + 0] = -1;
+			[SEMAPHORE_TABLE + i * 4 + 1] = 1;
+			R0 = i;
+			return;
+		endif;
+		i = i + 1;
+	endwhile;
+	R0 = -1;
+	return;
+endif;
+
+//FOR SEMAPHORE RELEASE
+if(functionNum == 7) then
+	alias SemTableEntry R2;
+	alias currPID R3;
+
+	if([SEMAPHORE_TABLE + SemTableEntry * 4 + 0] == currPID) then
+		[SEMAPHORE_TABLE + SemTableEntry * 4 + 0] = -1;
+		i = 0;
+		while(i<MAX_PROC_NUM) do
+			if([PROCESS_TABLE +i * 16 + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + i * 16 + 5] == SemTableEntry) then
+				[PROCESS_TABLE + i * 16 + 4] = READY;
+			endif;
+			i = i + 1;
+		endwhile;
+		[SEMAPHORE_TABLE + SemTableEntry * 4 + 1] = [SEMAPHORE_TABLE + SemTableEntry * 4 + 1] - 1;
+	endif;
+	R0 = 0;
+	return;
+endif;
+
+
+// FOR ACQUIRE TERMINAL
+if(functionNum == 8) then
+	//print "f8";
+	alias terminalStatus R9;
+	alias terminalPID R11;
+
+	terminalStatus = [TERMINAL_STATUS_TABLE + 0];
+	terminalPID = [TERMINAL_STATUS_TABLE + 1];
+
+	while(terminalStatus == 1) do 
+		[PROCESS_TABLE + currPID * 16 + 4] = WAIT_TERMINAL;
+		multipush(R1,R2,R9,R10,R11);
+		call MOD_5;	//calling scheduler module
+		multipop(R1,R2,R9,R10,R11);
+	endwhile;
+
+	[TERMINAL_STATUS_TABLE + 0] = 1;
+	[TERMINAL_STATUS_TABLE + 1] = currPID;
+	
+	//breakpoint; //part of stage 15 assg1
+	//return;
+endif;
+
+//FOR RELEASE TERMINAL
+if(functionNum == 9) then
+	//print "f9";
+	alias terminalPID R11;
+	terminalPID = [TERMINAL_STATUS_TABLE + 1];
+
+	if(currPID == terminalPID) then
+		[TERMINAL_STATUS_TABLE + 0] = 0;
+		
+		i = 1;
+		while(i< MAX_PROC_NUM) do
+			if([PROCESS_TABLE + i * 16 + 4] == WAIT_TERMINAL) then
+				[PROCESS_TABLE + i * 16 + 4] = READY;
+			endif;
+			i = i + 1;
+		endwhile;
+		R0 = 0;
+		//breakpoint; //part of stage 15 assg1
+		//return;
+	else
+		R0 = -1;
+		//breakpoint; //part of stage 15 assg1
+		//return;
+	endif;
+endif;
+	
+//print("exitreso");	
+return;	
+	

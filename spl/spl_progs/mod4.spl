@@ -1,0 +1,61 @@
+alias functionNum R1;
+alias currentPID R2;
+print("reacher mod4");
+alias wordToPrint R3;
+
+if(functionNum == TERMINAL_WRITE)
+then
+    
+    multipush(R1, R2, R3);
+    functionNum = ACQUIRE_TERMINAL;
+    call RESOURCE_MANAGER;
+    multipop(R1, R2, R3);
+
+    print R3;
+
+    functionNum = RELEASE_TERMINAL;
+    call RESOURCE_MANAGER;
+    
+    return;
+endif;
+if(functionNum == TERMINAL_READ)
+then 
+    multipush(R1, R2, R3);
+    R2 = [SYSTEM_STATUS_TABLE+1];
+    functionNum = ACQUIRE_TERMINAL;
+    call RESOURCE_MANAGER;
+    multipop(R1, R2, R3);
+    read;
+    [PROCESS_TABLE+currentPID*16+4] = WAIT_TERMINAL;
+    multipush( R2,R3);
+    call CONTEXT_SWITCH;
+    multipop(R2,R3);
+    [([PTBR + 2 * ((R3) / 512)] * 512) + ((R3) % 512)]=[PROCESS_TABLE+currentPID*16+8] ;
+    return;
+endif;
+if(functionNum == DISK_LOAD) then
+    print("in disk load");
+    //argumnets are pid, page and block number
+    // r2 is pid, r3 is page numbe and r4 is block number
+    multipush(R1, R2, R3);
+    R2 = currentPID;
+    R1 = ACQUIRE_DISK;
+    call RESOURCE_MANAGER;
+    multipop(R1, R2, R3);
+    [DISK_STATUS_TABLE+1] = 0; // LOAD/STORE BIT = LOAD=0
+    [DISK_STATUS_TABLE+2] = R3;
+    [DISK_STATUS_TABLE+3] = R4;
+    load(R3, R4);
+    
+    [PROCESS_TABLE+currentPID*16+4] = WAIT_DISK;
+    multipush(R2, R3);
+    call CONTEXT_SWITCH;
+    multipop(R2, R3);
+
+    
+    return;
+endif;
+
+return;
+
+

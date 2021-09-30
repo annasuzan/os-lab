@@ -1,0 +1,204 @@
+//print "exec";
+
+alias freePage R0;
+alias functionNum R1;
+alias currentPID R2;
+alias fileName R4;
+alias inode_entry R9;
+alias flag R10;
+alias i R11;
+alias userSP R13;
+
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+
+//----------------------------saving user stack and setting up the kernal stack------------------------------
+userSP = SP;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+
+SP = ([PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512) - 1;
+
+//----------------------------------------setting up MODE flag------------------------------------
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 9;
+
+//----------------------------------accessing file name of process to execute---------------------
+
+fileName = [([PTBR + 2*((userSP - 4)/512)] * 512) + ((userSP - 4) % 512)];
+
+//-----------------------------checking if filename exists in the disk-----------------------------
+i = 0;
+flag = 0;
+while(i<MAX_FILE_NUM) do
+	if([INODE_TABLE + 16 * i + 1] == fileName) then
+		flag = 1;
+		break;
+	endif;
+	i = i + 1;
+endwhile;
+
+//------------------------------if filename does not exist ---------------------------------------
+if(flag == 0) then
+	alias physicalAddrRetVal R5;
+	physicalAddrRetVal = ([PTBR + 2*((userSP - 1)/512)] * 512) + ((userSP - 1) % 512);
+	[physicalAddrRetVal] = -1;
+    SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+    [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+    ireturn;
+
+
+//------------------------------if filename exists------------------------------------------------
+	
+else
+	alias physicalAddrRetVal R5;
+	physicalAddrRetVal = ([PTBR + 2*((userSP - 1)/512)] * 512) + ((userSP - 1) % 512);
+	[physicalAddrRetVal] = 0;
+
+	inode_entry = i;
+	//------------------------------releasing pages of present process-------------------------
+
+	multipush(R0,R1,R2,R3,R4,R9,R10,R11);
+
+	functionNum = 3; //EXIT_PROCESS
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_1; //process manager module
+	
+	multipop(R0,R1,R2,R3,R4,R9,R10,R11);
+	
+	//-------------------------reclaiming the same user area page for new process----------------
+
+	alias userAreaPage R8;
+	userAreaPage = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];
+
+	[MEMORY_FREE_LIST + userAreaPage] = [MEMORY_FREE_LIST + userAreaPage] + 1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+	
+	SP = ([PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512) - 1;
+	
+	//-----------------------------setting up status and inode entry in process table -----------------
+
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 4] = RUNNING;
+	//[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 7] = inode_entry;
+	
+    //
+    i = 0;
+    while(i<10)
+    do
+        [PAGE_TABLE_BASE + currentPID*20 + 2*i] = -1;
+        [PAGE_TABLE_BASE + currentPID*20 + 2*i + 1] = "0000";
+        i = i + 1;
+    endwhile;
+
+
+
+	//------------------------------setting up page table entries for process--------------------------
+	//library
+	[PTBR+0] = 63;
+	[PTBR+1] = "0100";
+	[PTBR+2] = 64;
+	[PTBR+3] = "0100";
+	
+	//for heap
+	[PTBR+4] = -1;
+	[PTBR+5] = "0000";
+	[PTBR+6] = -1;
+	[PTBR+7] = "0000";
+
+	//for stack
+	multipush(R0,R1,R2,R3,R4,R8,R9,R10,R11);
+
+	functionNum = 1;
+	call MOD_2;
+	//print freePage;
+	[PTBR+16] = freePage;
+	[PTBR+17] = "0110";
+	functionNum = 1;
+	call MOD_2;
+	//print freePage;
+	[PTBR+18] = freePage;
+	[PTBR+19] = "0110";
+
+	multipop(R0,R1,R2,R3,R4,R8,R9,R10,R11);
+	
+	currentPID = [SYSTEM_STATUS_TABLE + 1];
+	i = 0;	
+	while(i<10) do
+		[DISK_MAP_TABLE + currentPID * 10 + i] = -1;
+		i = i + 1;
+	endwhile;
+
+
+	//---------------counting number of disk blocks used and setting up disk map table----------------------
+
+	alias noDisks R4;
+	noDisks = 0;
+	i = 0;
+	//flag = 0;
+	currentPID = [SYSTEM_STATUS_TABLE + 1];
+	//print "inode_entry";
+	//print inode_entry;
+	//print "currentPID";
+	//print currentPID;
+	while(i<4) do
+		if([INODE_TABLE + 16*inode_entry + 8 + i] != -1) then
+			noDisks = noDisks + 1;
+		endif;
+		[DISK_MAP_TABLE + 10 * currentPID + 4 + i] = [INODE_TABLE + 16 * inode_entry + 8 + i];
+		//print([INODE_TABLE + 16 * inode_entry + 8 + i]);
+		
+		i = i + 1;
+	endwhile;
+	//-------------------------------setting up code page-------------------------------
+	
+
+	if(noDisks > 0) then
+		multipush(R1,R2,R3,R4,R8,R9,R10,R11);
+
+		R1 = 5;    //R1
+		R2 = [DISK_MAP_TABLE + 10 * currentPID + 4];
+		R3 = [SYSTEM_STATUS_TABLE + 1];
+		//print "R0";
+		//print R0;
+		//print "R2";
+		//print R2;
+		call MOD_2;
+		//print"freePage";
+		//print R0;
+		multipop(R1,R2,R3,R4,R8,R9,R10,R11);
+		//print"freePage";
+		//print R0;
+		[PTBR + 8] = freePage;	
+		[PTBR + 9] = "0100";
+	
+
+	endif;
+	
+	
+	
+	//--------------------------invalidating other code pages-----------------------------
+	i = 1;
+	while(i<4) do
+		[PTBR + 8 + 2*i]  = -1;
+		[PTBR + 9 + 2*i ] = "0000";
+		i = i + 1;	
+	endwhile;
+
+	//-----------------setting the address of code to top of stack-------------------------
+	
+	[[PTBR+16] * 512] = [[PTBR + 8] * 512 + 1]; //[PTBR+16]-stackpage [PTBR + 8]-codePage
+	
+		
+endif;
+
+//------------------resetting mode flag and setting up SP-----------------------
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+SP = 8 * 512;
+
+
+//print("exitexec");
+ireturn;
+	
+	
+	
+

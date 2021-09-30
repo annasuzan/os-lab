@@ -1,0 +1,25 @@
+int main()
+{
+decl
+	int ret,a; 
+	string userName,password;
+enddecl
+begin
+	a = 1;
+	while(a == 1) do
+		write("-Username-");
+		read(userName);
+		write("-Password-");
+		read(password);
+		ret = exposcall("Login",userName,password);
+		if(ret == -1) then
+			write("Invalid cred");
+		endif;
+		if(ret == -2) then
+			write("Permission D");
+		endif;
+		
+	endwhile;
+	return 0;
+end
+}

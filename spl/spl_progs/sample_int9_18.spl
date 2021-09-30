@@ -1,0 +1,162 @@
+//print "exec";
+
+// saving user stack and setting up the kernal stack
+alias userSP R13;
+userSP = SP;
+alias fileName R4;
+alias functionNum R1;
+alias currentPID R2;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+
+SP = ([PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512) - 1;
+
+// setting up MODE flag
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 9;
+
+fileName = [([PTBR + 2*((userSP - 4)/512)] * 512) + ((userSP - 4) % 512)];
+
+alias i R11;
+alias flag R10;
+alias inode_entry R9;
+i = 0;
+flag = 0;
+
+while(i<MAX_FILE_NUM) do
+	if([INODE_TABLE + 16 * i + 1] == fileName) then
+		flag = 1;
+		break;
+	endif;
+	i = i + 1;
+endwhile;
+
+if(flag == 0) then
+	alias physicalAddrRetVal R5;
+	physicalAddrRetVal = ([PTBR + 2*((userSP - 1)/512)] * 512) + ((userSP - 1) % 512);
+	[physicalAddrRetVal] = -1;
+	
+else
+	alias physicalAddrRetVal R5;
+	physicalAddrRetVal = ([PTBR + 2*((userSP - 1)/512)] * 512) + ((userSP - 1) % 512);
+	[physicalAddrRetVal] = 0;
+
+	inode_entry = i;
+
+	multipush(R0,R1,R2,R3,R4,R9,R10,R11);
+
+	functionNum = 3; //EXIT_PROCESS
+	currentPID = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_1; //process manager module
+	
+	multipop(R0,R1,R2,R3,R4,R9,R10,R11);
+	
+	alias userAreaPage R8;
+	userAreaPage = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];
+
+	[MEMORY_FREE_LIST + userAreaPage] = [MEMORY_FREE_LIST + userAreaPage] + 1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+	
+	SP = ([PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512) - 1;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 4] = RUNNING;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 7] = inode_entry;
+	
+	//PTBR = PAGE_TABLE_BASE + [SYSTEM_STATUS_TABLE + 1] * 20;
+	//PTLR = 10;
+
+	//library
+	[PTBR+0] = 63;
+	[PTBR+1] = "0100";
+	[PTBR+2] = 64;
+	[PTBR+3] = "0100";
+	
+	multipush(R0,R1,R2,R3,R4,R8,R9,R10,R11);
+	
+	//for heap
+	//print("heap");
+	functionNum = 1;
+	call MOD_2; //memory manager module
+	alias freePage R0;
+	//print R0;
+	[PTBR+4] = freePage;
+	[PTBR+5] = "0110";
+	call MOD_2;
+	//print R0;
+	[PTBR+6] = freePage;
+	[PTBR+7] = "0110";
+	
+	//for stack
+	//print("stack");
+	call MOD_2;
+	//print R0;
+	[PTBR+16] = freePage;
+	[PTBR+17] = "0110";
+	call MOD_2;
+	//print R0;
+	[PTBR+18] = freePage;
+	[PTBR+19] = "0110";
+
+	multipop(R0,R1,R2,R3,R4,R8,R9,R10,R11);
+
+	//couting number of disk blocks used
+	alias noDisks R4;
+	noDisks = 0;
+	i = 0;
+	while(i<4) do
+		if([INODE_TABLE + 16*inode_entry + 8 + i] != -1) then
+			noDisks = noDisks + 1;
+		endif;
+		i = i + 1;
+	endwhile;
+	
+	//setting up code pages
+	i = 0;
+	//print("setting up code");
+	while(i<noDisks) do
+		R1 = 1;
+		call MOD_2;
+		//print freePage;
+		[PTBR + 8 + 2*i]  = freePage;
+		[PTBR + 9 + 2*i ] = "0100";
+		i = i + 1;	
+	endwhile;
+
+
+	//loading code blocks from disk to memory pages
+	alias diskBlock R8;
+	alias memPage R12; 
+	i = 0;
+	while(i<noDisks) do
+		diskBlock = [INODE_TABLE + 16 * inode_entry + 8 + i];
+		memPage = [PTBR + 8 + 2*i];
+
+		multipush(R0,R1,R2,R4,R8,R9,R10,R11,R12,R13);
+		R1 = 2;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = memPage;
+		R4 = diskBlock;
+		call MOD_4;
+		multipop(R0,R1,R2,R4,R8,R9,R10,R11,R12,R13);
+		i = i + 1;	
+	endwhile;
+
+	alias stackPage R8;
+	alias codePage R12;
+	stackPage = [PTBR+16];
+	codePage = [PTBR + 8];
+	[stackPage * 512] = [codePage * 512 + 1];
+	//[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = 8 * 512;
+	
+		
+endif;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+SP = 8 * 512;
+
+
+//print("exitexec");
+ireturn;
+
+
+	
+
+

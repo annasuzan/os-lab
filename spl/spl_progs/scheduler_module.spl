@@ -1,0 +1,82 @@
+//print "sche";
+
+// pushing BP
+multipush (BP);
+
+// finding the PID of the current process
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+
+
+// finding the entry of the current process 
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + currentPID * 16;
+
+//setting KPTR,PTBR,PTLR
+[process_table_entry + 12] = SP % 512;
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+
+// finding the next process to schedule
+alias i R5;
+i = currentPID + 1;
+alias newPID R2;
+newPID = -1;
+
+while(i!=currentPID) do
+	if([PROCESS_TABLE + i*16 + 4] == CREATED || [PROCESS_TABLE + i*16 + 4] == READY ) then
+		newPID = [PROCESS_TABLE + i*16 + 1];
+		break;
+	endif;
+	if(i<15) then
+		i = i + 1;
+	else
+		i = 15 - i;
+	endif;
+endwhile;	
+
+//if no process is there to schedule set idle(0) as the next process
+i = currentPID;
+if(newPID == -1) then
+	if([PROCESS_TABLE + i*16 + 4] == CREATED || [PROCESS_TABLE + i*16 + 4] == READY ) then
+		newPID = [PROCESS_TABLE + i*16 + 1];
+	else
+		newPID = 0;	
+	endif;
+	
+endif;
+
+//setting the entry of the new process
+alias new_process_table R3;
+new_process_table = PROCESS_TABLE + newPID * 16;
+
+//resetting SP,PBTR,PTLR
+SP = [new_process_table + 11] * 512 + [new_process_table + 12];
+PTBR = [new_process_table + 14];
+PTLR = [new_process_table + 15];
+
+// setting the current process PID in the system status table
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+//print "newPID in sm-";
+//print newPID;	
+
+//if the next scheduled process is CREATED
+if([new_process_table + 4] == CREATED) then
+	[new_process_table + 4] = RUNNING;
+	SP = [new_process_table + 13];
+	[new_process_table + 9] = 0;
+	ireturn;
+endif;
+
+//if not
+[new_process_table + 4] = RUNNING;
+
+//poping BP
+multipop (BP);
+  
+//[new_process_table + 9] = 0;
+//print "exitschd";
+//breakpoint
+return;
+

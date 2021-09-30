@@ -1,0 +1,325 @@
+//print "boot";
+alias i R5;
+alias j R6;
+
+i = 2;
+j = 15;
+while(i < 38) do
+	loadi(i,j);
+	i = i + 1;
+	j = j + 1;
+	//loadi(i,j);
+	//i = i + 1;
+	//j = j + 1;
+endwhile;
+
+//Loading exception handler 
+//loadi(2,15);
+//loadi(3,16);
+
+//Loading timer interrupt routine to memory (17-->4 18--->5)
+//loadi(4,17);
+//loadi(5,18);
+
+//loading disk interrupt routine
+//loadi(6,19);
+//loadi(7,20);
+
+//loading console interrupt routine
+//loadi(8,21);
+//loadi(9,22);
+
+//loading int4
+//loadi(10,23);
+//loadi(11,24);
+
+//loading int5
+//loadi(12,25);
+//loadi(13,26);
+
+//loading int6
+//loadi(14,27);
+//loadi(15,28);
+
+//Loading int7 
+//loadi(16,29);
+//loadi(17,30);
+
+//loading int8
+//loadi(18,31);
+//loadi(19,32);
+
+//loading int9
+//loadi(20,33);
+//loadi(21,34);
+
+//Loading int10
+//loadi(22,35);
+//loadi(23,36);
+
+//loading int11
+//loadi(24,37);
+//loadi(25,38);
+
+//loading int12
+//loadi(26,39);
+//loadi(27,40);
+
+//loading int13
+//loadi(28,41);
+//loadi(29,42);
+
+//loading int14
+//loadi(30,43);
+//loadi(31,44);
+
+//loading int15
+//loadi(32,45);
+//loadi(33,46);
+
+//loading int16
+//loadi(34,47);
+//loadi(35,48);
+
+//loading int17
+//loadi(36,49);
+//loadi(37,50);
+
+
+
+//loading resource manager(module 0)
+loadi(40,53);
+loadi(41,54);
+
+//loading process manager module (module 1)
+loadi(42,55);
+loadi(43,56);
+
+//loading memory manager module (module 2)
+loadi(44,57);
+loadi(45,58);
+
+//loading file manager module(module 3)
+loadi(46,59);
+loadi(47,60);
+
+//loading device manager(module 4)
+loadi(48,61);
+loadi(49,62);
+
+//loading scheduler(module 5)
+loadi(50,63);
+loadi(51,64);
+
+
+//loading rootfile
+loadi(62,5);
+
+//loading disk free list
+loadi(61,2);
+
+
+//loading inode table + user table
+loadi(59,3);
+loadi(60,4);
+
+
+//Loading Library code from disk to memory 
+loadi(63,13);
+loadi(64,14);
+
+
+//Loading INIT program
+loadi(65,7);
+//loadi(66,8);
+
+//initialising status field in terminal table
+[TERMINAL_STATUS_TABLE + 0] = 0;
+
+//setting up page table entries for init process
+
+PTBR = PAGE_TABLE_BASE + 20;
+PTLR = 10;
+
+//Library
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+//Heap
+[PTBR+4] = -1;		//78
+[PTBR+5] = "0000";	//0110
+[PTBR+6] = -1;		//79
+[PTBR+7] = "0000";	//0110
+
+//Code
+[PTBR+8]  = 65;
+[PTBR+9]  = "0100";
+[PTBR+10] = -1;		//66
+[PTBR+11] = "0000";	//0100
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack
+[PTBR+16] = 66;		//76
+[PTBR+17] = "0110";
+[PTBR+18] = -1;		//77
+[PTBR+19] = "0000";	//0110
+
+//setting process table for init
+alias proTable_init R4;
+proTable_init = PROCESS_TABLE + 16;
+[proTable_init + 1] = 1; 
+[proTable_init + 3] = 1;
+[proTable_init + 4] = CREATED;
+[proTable_init + 11] = 77; 	//80
+[proTable_init + 12] = 0;
+[proTable_init + 13] = 8 * 512;
+[proTable_init + 14] = PAGE_TABLE_BASE + 20;
+[proTable_init + 15] = 10;
+
+[66 * 512] = [65 * 512 + 1];	//[76*512] = ..
+
+//------SHELL CODE-----
+loadi(67,9);
+loadi(68,10);
+
+PTBR = PAGE_TABLE_BASE + 40;
+PTLR = 10;
+
+//Library
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+//Heap
+[PTBR+4] = -1;		
+[PTBR+5] = "0000";	
+[PTBR+6] = -1;		
+[PTBR+7] = "0000";	
+
+//Code
+[PTBR+8]  = 67;
+[PTBR+9]  = "0100";
+[PTBR+10] = 68;		
+[PTBR+11] = "0100";	
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack
+[PTBR+16] = 78;		
+[PTBR+17] = "0110";
+[PTBR+18] = 79;		
+[PTBR+19] = "0110";	
+
+
+//setting process table for SHELL
+alias proTable_shell R4;
+proTable_shell = PROCESS_TABLE + 32;
+
+[proTable_shell + 1] = 2; 		//PID
+[proTable_shell + 2] = 1; 		//PPID
+[proTable_shell + 3] = 1;		//USER-ID
+[proTable_shell + 4] = TERMINATED;	//STATE
+[proTable_shell + 11] = 80; 	//USER AREA PAGE	
+[proTable_shell + 12] = 0;		//KPTR
+[proTable_shell + 13] = 8 * 512;	//UPTR
+[proTable_shell + 14] = PAGE_TABLE_BASE + 40;
+[proTable_shell + 15] = 10;
+
+[78 * 512] = [67 * 512 + 1];	
+
+
+//initializing the disk map table
+i = 0;
+while(i<10) do
+	[DISK_MAP_TABLE + 20 + i] = -1;
+	i = i + 1;
+endwhile;
+
+[DISK_MAP_TABLE + 20 + 4] = 9;
+[DISK_MAP_TABLE + 20 + 5] = 10;
+
+i = 2;
+while(i<MAX_PROC_NUM) do
+	[PROCESS_TABLE + i*16 + 4] = TERMINATED;
+	//print i;
+	i = i + 1;
+endwhile;
+
+[SYSTEM_STATUS_TABLE + 2] = 0;
+
+//MEMORY FREE LIST
+i = 0;
+while(i<128) do
+	if(i<81) then
+		[MEMORY_FREE_LIST + i] = 1;
+	else
+		[MEMORY_FREE_LIST + i] = 0;
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+	endif;
+	//print("i");
+	//print(i);
+	//print([SYSTEM_STATUS_TABLE + 2]);
+	i = i + 1;
+endwhile;
+
+print([SYSTEM_STATUS_TABLE + 2]);
+
+//PER-PROCESS RESOURCE TABLE
+i = 0;
+alias perRT R4;
+perRT = [PROCESS_TABLE + 16 + 11] * 512 + 496;
+while(i<8) do
+	[perRT + i*2] = -1;
+	[perRT + i*2 + 1] = -1;
+	i = i+1;
+endwhile;
+
+[SYSTEM_STATUS_TABLE + 3] = 0;	
+[DISK_STATUS_TABLE + 0] = 0;
+
+//SEMAPHORE TABLE
+i = 0;
+while(i<32) do
+	[SEMAPHORE_TABLE + i * 4 + 0] = -1;
+	[SEMAPHORE_TABLE + i * 4 + 1] = 0;
+	i = i + 1;
+endwhile;
+
+//FILE STATUS TABLE
+i = 0;
+while(i<MAX_FILE_NUM) do
+	[FILE_STATUS_TABLE + i * 4 + 0] = -1;
+	[FILE_STATUS_TABLE + i * 4 + 1] = -1;
+	i = i + 1;
+endwhile;
+
+//BUFFER TABLE 
+i = 0;
+while(i<MAX_BUFFER) do
+	[BUFFER_TABLE + i * 4 + 0] = -1;
+	[BUFFER_TABLE + i * 4 + 1] = 0;
+	[BUFFER_TABLE + i * 4 + 2] = -1;
+	i = i + 1;
+endwhile;
+
+//OPEN FILE TABLE
+i = 0;
+while(i<MAX_OPENFILE_NUM) do
+	[OPEN_FILE_TABLE + i * 4] = -1;
+	[OPEN_FILE_TABLE + i * 4 + 1] = 0;
+	i = i + 1;
+endwhile;
+
+
+//print("endboot");	
+return;
+
+

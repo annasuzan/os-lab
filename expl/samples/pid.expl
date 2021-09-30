@@ -1,0 +1,18 @@
+int main()
+{
+    decl
+        int temp,pid;
+    enddecl
+
+    begin
+        pid = exposcall("Getpid");
+	if(pid < 0) then
+            temp=exposcall("Write", -2, "FE");
+        else
+            temp=exposcall("Write", -2, pid);
+        endif;
+    	return 0;
+    end
+}
+
+
