@@ -6,7 +6,7 @@ decl
 	str chara;
 enddecl
 begin
-	write("File name");
+	write("File name is");
 	read(fileName);
 	write("Permission");
 	read(permission);
